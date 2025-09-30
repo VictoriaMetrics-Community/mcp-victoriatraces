@@ -44,7 +44,7 @@ changelog:
 
 dockers_v2:
   - images:
-      - "ghcr.io/victoriametrics-community/mcp-victorialtraces"
+      - "ghcr.io/victoriametrics-community/mcp-victoriatraces"
     tags:
       - latest
       - "v{{ .Version }}"

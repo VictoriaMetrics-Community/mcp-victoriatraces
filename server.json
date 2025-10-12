@@ -1,9 +1,8 @@
 {
-  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-07-09/server.schema.json",
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
   "name": "io.github.VictoriaMetrics-Community/mcp-victoriatraces",
   "description": "MCP Server for VictoriaTraces. Provides integration with VictoriaTraces API and documentation",
   "status": "active",
-  "website_url": "https://github.com/VictoriaMetrics-Community/mcp-victoriatraces",
   "repository": {
     "url": "https://github.com/VictoriaMetrics-Community/mcp-victoriatraces",
     "source": "github"
@@ -11,41 +10,34 @@
   "version": "${VERSION}",
   "packages": [
     {
-      "registry_type": "oci",
-      "registry_base_url": "https://ghcr.io",
+      "registryType": "oci",
+      "registryBaseUrl": "https://ghcr.io",
       "identifier": "victoriametrics-community/mcp-victoriatraces",
-      "version": "${VERSION}",
+      "version": "v${VERSION}",
       "transport": {
         "type": "stdio"
       },
-      "environment_variables": [
+      "environmentVariables": [
         {
           "name": "VT_INSTANCE_ENTRYPOINT",
-          "description": "URL to VictoriaMetrics instance (it should be root URL of vtlingle or vtselect), for example http://localhost:10428",
-          "is_required": true,
+          "description": "URL to VictoriaTraces instance (it should be root URL of vtlingle or vtselect), for example http://localhost:10428",
+          "isRequired": true,
           "format": "string",
-          "is_secret": false
-        },
-        {
-          "name": "VT_INSTANCE_TYPE",
-          "description": "Type of VictoriaMetrics instance (single / cluster)",
-          "is_required": true,
-          "format": "string",
-          "is_secret": false
+          "isSecret": false
         },
         {
           "name": "VT_INSTANCE_BEARER_TOKEN",
           "description": "Authentication token for VictoriaMetrics API",
-          "is_required": true,
+          "isRequired": true,
           "format": "string",
-          "is_secret": true
+          "isSecret": true
         },
         {
           "name": "MCP_DISABLED_TOOLS",
           "description": "Comma-separated list of tools to disable",
-          "is_required": false,
+          "isRequired": false,
           "format": "string",
-          "is_secret": false
+          "isSecret": false
         }
       ]
     }

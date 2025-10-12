@@ -366,6 +366,7 @@ These are just examples at the moment, the prompt library will be added to in th
 ## Roadmap
  
 - [ ] Implement multitenant version of MCP (that will support several deployments)
+- [ ] Add service graph tool after release of [this feature](https://github.com/VictoriaMetrics/VictoriaTraces/pull/52)
 
 ## Disclaimer
 

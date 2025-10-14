@@ -354,7 +354,7 @@ Here's a list of available tools:
 | `service_names` | Get all the span names (operations) of a service |
 | `traces`        | Query traces                                     |
 | `trace`         | Get trace info by trace ID                       |
-| `dependencies`  | Query the service dependency graph               |
+| `dependencies`  | Query the service dependency graph (#7)          |
 
 ### Prompts
 
@@ -369,7 +369,7 @@ These are just examples at the moment, the prompt library will be added to in th
 ## Roadmap
  
 - [ ] Implement multitenant version of MCP (that will support several deployments)
-- [x] Add service graph tool after release of [this feature](https://github.com/VictoriaMetrics/VictoriaTraces/pull/52)
+- [x] Add service graph tool after release of [this feature](https://github.com/VictoriaMetrics/VictoriaTraces/pull/52) (see #7)
 
 ## Disclaimer
 

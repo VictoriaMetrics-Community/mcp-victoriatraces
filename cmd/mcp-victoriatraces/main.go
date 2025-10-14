@@ -74,6 +74,7 @@ Try not to second guess information - if you don't know something or lack inform
 	tools.RegisterToolTrace(s, c)
 	tools.RegisterToolTraces(s, c)
 	tools.RegisterToolServices(s, c)
+	tools.RegisterToolDependencies(s, c)
 	tools.RegisterToolDocumentation(s, c)
 	tools.RegisterToolServiceOperations(s, c)
 

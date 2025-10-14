@@ -347,13 +347,14 @@ MCP VictoriaTraces provides numerous tools for interacting with your VictoriaTra
 
 Here's a list of available tools:
 
-| Tool                  | Description                                      |
-|-----------------------|--------------------------------------------------|
-| `documentation`       | Search in embedded VictoriaTraces documentation  |
-| `services`            | List of all traced services                      |
-| `service_names`       | Get all the span names (operations) of a service |
-| `traces`              | Query traces                                     |
-| `trace`               | Get trace info by trace ID                       |
+| Tool            | Description                                      |
+|-----------------|--------------------------------------------------|
+| `documentation` | Search in embedded VictoriaTraces documentation  |
+| `services`      | List of all traced services                      |
+| `service_names` | Get all the span names (operations) of a service |
+| `traces`        | Query traces                                     |
+| `trace`         | Get trace info by trace ID                       |
+| `dependencies`  | Query the service dependency graph               |
 
 ### Prompts
 
@@ -368,14 +369,14 @@ These are just examples at the moment, the prompt library will be added to in th
 ## Roadmap
  
 - [ ] Implement multitenant version of MCP (that will support several deployments)
-- [ ] Add service graph tool after release of [this feature](https://github.com/VictoriaMetrics/VictoriaTraces/pull/52)
+- [x] Add service graph tool after release of [this feature](https://github.com/VictoriaMetrics/VictoriaTraces/pull/52)
 
 ## Disclaimer
 
 AI services and agents along with MCP servers like this cannot guarantee the accuracy, completeness and reliability of results.
 You should double check the results obtained with AI.
 
-The quality of the MCP Server and its responses depends very much on the capabilities of your client and the quality of the model you are using.
+The quality of the MCP Server and its responses depend very much on the capabilities of your client and the quality of the model you are using.
 
 ## Contributing
 

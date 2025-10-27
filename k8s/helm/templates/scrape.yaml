@@ -1,0 +1,15 @@
+{{- if .Values.scrape.enabled }}
+---
+apiVersion: operator.victoriatraces.com/v1beta1
+kind: VMServiceScrape
+metadata:
+  labels: {{ include "mcp-victoriatraces.labels" . | nindent 4 }}
+  name: {{ include "mcp-victoriatraces.fullname" . }}
+spec:
+  endpoints:
+    - path: /metrics
+      port: http
+  namespaceSelector: { }
+  selector:
+    matchLabels: {{ include "mcp-victoriatraces.labels" . | nindent 6 }}
+{{- end }}

@@ -61,6 +61,12 @@ var (
 			mcp.Description("The maximum number of traces in query results, default 20."),
 			mcp.DefaultNumber(20),
 		),
+		mcp.WithString("tags",
+			mcp.Title("Tags"),
+			mcp.Description("A JSON object of tag/attribute key:value pairs to filter spans, e.g. {\"status\":\"error\"}. "+
+				"A value prefixed with `~` means regex match, e.g. {\"status\":\"~err.*\"}."),
+			mcp.DefaultString(""),
+		),
 	)
 )
 
@@ -103,6 +109,11 @@ func toolTracesHandler(ctx context.Context, cfg *config.Config, tcr mcp.CallTool
 		limit = 20
 	}
 
+	tags, err := GetToolReqParam[string](tcr, "tags", false)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
 	req, err := CreateSelectRequest(ctx, cfg, tcr, "traces")
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("failed to create request: %v", err)), nil
@@ -124,6 +135,9 @@ func toolTracesHandler(ctx context.Context, cfg *config.Config, tcr mcp.CallTool
 	}
 	if maxDuration != "" {
 		q.Add("maxDuration", maxDuration)
+	}
+	if tags != "" {
+		q.Add("tags", tags)
 	}
 	q.Add("limit", fmt.Sprintf("%d", uint64(limit)))
 	req.URL.RawQuery = q.Encode()

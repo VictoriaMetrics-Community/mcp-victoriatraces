@@ -214,6 +214,64 @@ claude mcp add victoriatraces -- /path/to/mcp-victoriatraces \
 
 See [Claude Code MCP docs](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/tutorials#set-up-model-context-protocol-mcp) for more info.
 
+### Codex
+
+Codex CLI and the IDE extension use the same MCP configuration file: `~/.codex/config.toml`
+(or `.codex/config.toml` in a trusted project).
+
+Run the command:
+
+```sh
+codex mcp add victoriatraces \
+  --env VT_INSTANCE_ENTRYPOINT=<YOUR_VT_INSTANCE> \
+  --env VT_INSTANCE_BEARER_TOKEN=<YOUR_VT_BEARER_TOKEN> \
+  --env VT_INSTANCE_HEADERS="<HEADER>=<HEADER_VALUE>,<HEADER>=<HEADER_VALUE>" \
+  -- /path/to/mcp-victoriatraces
+```
+
+Or add the following to your Codex `~/.codex/config.toml` file:
+
+```toml
+[mcp_servers.victoriatraces]
+command = "/path/to/mcp-victoriatraces"
+
+[mcp_servers.victoriatraces.env]
+VT_INSTANCE_ENTRYPOINT = "<YOUR_VT_INSTANCE>"
+VT_INSTANCE_BEARER_TOKEN = "<YOUR_VT_BEARER_TOKEN>"
+VT_INSTANCE_HEADERS = "<HEADER>=<HEADER_VALUE>,<HEADER>=<HEADER_VALUE>"
+```
+
+If you run the server in Streamable HTTP mode, you can register it with:
+
+```sh
+codex mcp add victoriatraces --url http://localhost:8081/mcp
+```
+
+See [Codex MCP docs](https://developers.openai.com/codex/mcp) for more info.
+
+### OpenCode
+
+Add the following to your OpenCode config file in `~/.config/opencode/opencode.json`:
+
+```json
+{
+  "mcp": {
+    "victoriatraces": {
+      "type": "local",
+      "command": ["/path/to/mcp-victoriatraces"],
+      "enabled": true,
+      "environment": {
+        "VT_INSTANCE_ENTRYPOINT": "<YOUR_VT_INSTANCE>",
+        "VT_INSTANCE_BEARER_TOKEN": "<YOUR_VT_BEARER_TOKEN>",
+        "VT_INSTANCE_HEADERS": "<HEADER>=<HEADER_VALUE>,<HEADER>=<HEADER_VALUE>"
+      }
+    }
+  }
+}
+```
+
+See [OpenCode MCP docs](https://opencode.ai/docs/mcp-servers/) for more info.
+
 ### Visual Studio Code
 
 Add this to your VS Code MCP config file:

@@ -17,17 +17,21 @@ package index
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"reflect"
 )
 
 var reflectStaticSizeTermFieldDoc int
 var reflectStaticSizeTermFieldVector int
+var reflectStaticSizeGeoShapeV2FieldDoc int
 
 func init() {
 	var tfd TermFieldDoc
 	reflectStaticSizeTermFieldDoc = int(reflect.TypeOf(tfd).Size())
 	var tfv TermFieldVector
 	reflectStaticSizeTermFieldVector = int(reflect.TypeOf(tfv).Size())
+	var gfd GeoShapeV2FieldDoc
+	reflectStaticSizeGeoShapeV2FieldDoc = int(reflect.TypeOf(gfd).Size())
 }
 
 type Index interface {
@@ -55,6 +59,11 @@ type CopyIndex interface {
 	// Obtain a copy reader for the online copy/backup operation,
 	// to handle necessary bookkeeping, instead of using the regular IndexReader.
 	CopyReader() CopyReader
+}
+
+type TrainableIndex interface {
+	Index
+	Train(*Batch) error
 }
 
 // EventIndex is an optional interface for exposing the support for firing event
@@ -185,15 +194,47 @@ func (tfv *TermFieldVector) Size() int {
 		len(tfv.Field) + len(tfv.ArrayPositions)*sizeOfUint64
 }
 
-// IndexInternalID is an opaque document identifier interal to the index impl
+// IndexInternalID is an opaque document identifier internal to the index impl
 type IndexInternalID []byte
 
+// NewIndexInternalID encodes a uint64 into an 8-byte big-endian ID, reusing `buf` when possible.
+func NewIndexInternalID(buf []byte, in uint64) IndexInternalID {
+	if len(buf) != 8 {
+		if cap(buf) >= 8 {
+			buf = buf[0:8]
+		} else {
+			buf = make([]byte, 8)
+		}
+	}
+	id := IndexInternalID(buf)
+	id.SetValue(in)
+	return id
+}
+
+// NewIndexInternalIDFrom creates a new IndexInternalID by copying from `other`, reusing `buf` when possible.
+func NewIndexInternalIDFrom(buf IndexInternalID, other IndexInternalID) IndexInternalID {
+	buf = buf[:0]
+	return append(buf, other...)
+}
+
+// Equals checks if two IndexInternalID values are equal.
 func (id IndexInternalID) Equals(other IndexInternalID) bool {
 	return id.Compare(other) == 0
 }
 
+// Compare compares two IndexInternalID values, inherently comparing the encoded uint64 values.
 func (id IndexInternalID) Compare(other IndexInternalID) int {
 	return bytes.Compare(id, other)
+}
+
+// Value returns the uint64 value encoded in the IndexInternalID.
+func (id IndexInternalID) Value() uint64 {
+	return binary.BigEndian.Uint64(id)
+}
+
+// SetValue overwrites the encoded uint64 value in the IndexInternalID in place.
+func (id IndexInternalID) SetValue(in uint64) {
+	binary.BigEndian.PutUint64(id, in)
 }
 
 type TermFieldDoc struct {
@@ -353,6 +394,21 @@ type ThesaurusReader interface {
 	ThesaurusKeysPrefix(name string, termPrefix []byte) (ThesaurusKeys, error)
 }
 
+// EligibleDocumentIterator provides an interface to iterate over eligible document IDs.
+type EligibleDocumentIterator interface {
+	// Next returns the next document ID and whether it exists.
+	// When ok is false, iteration is complete.
+	Next() (id uint64, ok bool)
+}
+
+// EligibleDocumentList represents a list of eligible document IDs for filtering.
+type EligibleDocumentList interface {
+	// Iterator returns an iterator for the eligible document IDs.
+	Iterator() EligibleDocumentIterator
+	// Count returns the number of eligible document IDs.
+	Count() uint64
+}
+
 // EligibleDocumentSelector filters documents based on specific eligibility criteria.
 // It can be extended with additional methods for filtering and retrieval.
 type EligibleDocumentSelector interface {
@@ -360,10 +416,9 @@ type EligibleDocumentSelector interface {
 	// id is the internal identifier of the document to be added.
 	AddEligibleDocumentMatch(id IndexInternalID) error
 
-	// SegmentEligibleDocs returns a list of eligible document IDs within a given segment.
-	// segmentID identifies the segment for which eligible documents are retrieved.
-	// This must be called after all eligible documents have been added.
-	SegmentEligibleDocs(segmentID int) []uint64
+	// SegmentEligibleDocuments returns an EligibleDocumentList for the specified segment.
+	// This must be called after all eligible documents have been added via AddEligibleDocumentMatch.
+	SegmentEligibleDocuments(segmentID int) EligibleDocumentList
 }
 
 // -----------------------------------------------------------------------------
@@ -391,3 +446,111 @@ type IndexInsightsReader interface {
 	// cluster densities (or cardinalities)
 	CentroidCardinalities(field string, limit int, descending bool) (cenCards []CentroidCardinality, err error)
 }
+
+// -----------------------------------------------------------------------------
+// NestedReader is an extended index reader that supports hierarchical document structures.
+type NestedReader interface {
+	IndexReader
+	// Ancestors returns the ancestral chain for a given document ID in the index.
+	// For nested documents, this method retrieves all parent documents in the hierarchy
+	// leading up to the root document ID.
+	Ancestors(id IndexInternalID, prealloc []AncestorID) ([]AncestorID, error)
+}
+
+// AncestorID represents the identifier of an ancestor document in an ancestor chain.
+type AncestorID uint64
+
+// NewAncestorID creates a new AncestorID from the given uint64 value.
+func NewAncestorID(val uint64) AncestorID {
+	return AncestorID(val)
+}
+
+// Compare compares two AncestorID values.
+func (a AncestorID) Compare(b AncestorID) int {
+	switch {
+	case a < b:
+		return -1
+	case a > b:
+		return 1
+	default:
+		return 0
+	}
+}
+
+// Equals checks if two AncestorID values are equal.
+func (a AncestorID) Equals(b AncestorID) bool {
+	return a == b
+}
+
+// Add returns a new AncestorID by adding the given uint64 value to the current AncestorID.
+func (a AncestorID) Add(n uint64) AncestorID {
+	return AncestorID(uint64(a) + n)
+}
+
+// ToIndexInternalID converts the AncestorID to an IndexInternalID.
+func (a AncestorID) ToIndexInternalID(prealloc IndexInternalID) IndexInternalID {
+	return NewIndexInternalID(prealloc, uint64(a))
+}
+
+// -----------------------------------------------------------------------------
+// GeoShapeV2IndexReader is an extended index reader that supports reading and
+// querying Geo-Shape V2 data.
+type GeoShapeV2IndexReader interface {
+	IndexReader
+
+	GeoShapeV2FieldReader(ctx context.Context, field string) (
+		GeoShapeV2FieldReader, error)
+}
+
+// GeoShapeV2FieldReader iterates over the documents whose shapes satisfy a
+// spatial relation with a query shape. Search must be called before Next or Advance.
+type GeoShapeV2FieldReader interface {
+	// Search performs a full search and obtains all of the hits for the
+	// given shape and relation.
+	Search(shape GeoJSON, relation string) error
+
+	// Next returns the next document matching the search, or nil when it
+	// reaches the end of the enumeration.
+	Next(*GeoShapeV2FieldDoc) (*GeoShapeV2FieldDoc, error)
+
+	// Advance resets the enumeration at specified document.
+	Advance(ID IndexInternalID, preAlloced *GeoShapeV2FieldDoc) (
+		*GeoShapeV2FieldDoc, error)
+
+	// Count returns the number of documents matched by the preceding Search.
+	Count() uint64
+
+	// Close releases any resources associated with the reader.
+	Close() error
+
+	// Size returns the size of the reader in bytes.
+	Size() int
+}
+
+// GeoShapeV2FieldDoc represents a single hit from a geo shape v2 search.
+type GeoShapeV2FieldDoc struct {
+	ID IndexInternalID
+}
+
+func (g *GeoShapeV2FieldDoc) Size() int {
+	return reflectStaticSizeGeoShapeV2FieldDoc + sizeOfPtr + len(g.ID)
+}
+
+func (g *GeoShapeV2FieldDoc) Reset() *GeoShapeV2FieldDoc {
+	// remember the []byte used for the ID
+	id := g.ID
+	// idiom to copy over from empty GeoShapeV2FieldDoc (0 allocations)
+	*g = GeoShapeV2FieldDoc{}
+	// reuse the []byte already allocated (and reset len to 0)
+	g.ID = id[:0]
+	return g
+}
+
+// -----------------------------------------------------------------------------
+
+// Default no-op implementation. Is called before writing any user data to a file.
+var WriterHook func(context []byte) (string, func(data []byte) []byte, error)
+
+// Default no-op implementation. Is called after reading any user data from a file.
+var ReaderHook func(id string, context []byte) (
+	func(data []byte) ([]byte, error), error)

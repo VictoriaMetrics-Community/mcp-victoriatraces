@@ -100,6 +100,16 @@ func AsEmbeddedResource(content any) (*EmbeddedResource, bool) {
 	return asType[EmbeddedResource](content)
 }
 
+// AsToolUseContent attempts to cast the given interface to ToolUseContent
+func AsToolUseContent(content any) (*ToolUseContent, bool) {
+	return asType[ToolUseContent](content)
+}
+
+// AsToolResultContent attempts to cast the given interface to ToolResultContent
+func AsToolResultContent(content any) (*ToolResultContent, bool) {
+	return asType[ToolResultContent](content)
+}
+
 // AsTextResourceContents attempts to cast the given interface to TextResourceContents
 func AsTextResourceContents(content any) (*TextResourceContents, bool) {
 	return asType[TextResourceContents](content)
@@ -157,8 +167,7 @@ func NewJSONRPCError(
 	}
 }
 
-// NewProgressNotification
-// Helper function for creating a progress notification
+// NewProgressNotification creates a progress notification.
 func NewProgressNotification(
 	token ProgressToken,
 	progress float64,
@@ -167,7 +176,7 @@ func NewProgressNotification(
 ) ProgressNotification {
 	notification := ProgressNotification{
 		Notification: Notification{
-			Method: "notifications/progress",
+			Method: string(MethodNotificationProgress),
 		},
 		Params: struct {
 			ProgressToken ProgressToken `json:"progressToken"`
@@ -188,8 +197,7 @@ func NewProgressNotification(
 	return notification
 }
 
-// NewLoggingMessageNotification
-// Helper function for creating a logging message notification
+// NewLoggingMessageNotification creates a logging message notification.
 func NewLoggingMessageNotification(
 	level LoggingLevel,
 	logger string,
@@ -197,7 +205,7 @@ func NewLoggingMessageNotification(
 ) LoggingMessageNotification {
 	return LoggingMessageNotification{
 		Notification: Notification{
-			Method: "notifications/message",
+			Method: string(MethodNotificationMessage),
 		},
 		Params: struct {
 			Level  LoggingLevel `json:"level"`
@@ -211,8 +219,7 @@ func NewLoggingMessageNotification(
 	}
 }
 
-// NewPromptMessage
-// Helper function to create a new PromptMessage
+// NewPromptMessage creates a prompt message.
 func NewPromptMessage(role Role, content Content) PromptMessage {
 	return PromptMessage{
 		Role:    role,
@@ -220,8 +227,7 @@ func NewPromptMessage(role Role, content Content) PromptMessage {
 	}
 }
 
-// NewTextContent
-// Helper function to create a new TextContent
+// NewTextContent creates text content.
 func NewTextContent(text string) TextContent {
 	return TextContent{
 		Type: ContentTypeText,
@@ -229,8 +235,7 @@ func NewTextContent(text string) TextContent {
 	}
 }
 
-// NewImageContent
-// Helper function to create a new ImageContent
+// NewImageContent creates image content.
 func NewImageContent(data, mimeType string) ImageContent {
 	return ImageContent{
 		Type:     ContentTypeImage,
@@ -239,7 +244,7 @@ func NewImageContent(data, mimeType string) ImageContent {
 	}
 }
 
-// Helper function to create a new AudioContent
+// NewAudioContent creates audio content.
 func NewAudioContent(data, mimeType string) AudioContent {
 	return AudioContent{
 		Type:     ContentTypeAudio,
@@ -248,7 +253,7 @@ func NewAudioContent(data, mimeType string) AudioContent {
 	}
 }
 
-// Helper function to create a new ResourceLink
+// NewResourceLink creates a resource link.
 func NewResourceLink(uri, name, description, mimeType string) ResourceLink {
 	return ResourceLink{
 		Type:        ContentTypeLink,
@@ -259,11 +264,31 @@ func NewResourceLink(uri, name, description, mimeType string) ResourceLink {
 	}
 }
 
-// Helper function to create a new EmbeddedResource
+// NewEmbeddedResource creates an embedded resource.
 func NewEmbeddedResource(resource ResourceContents) EmbeddedResource {
 	return EmbeddedResource{
 		Type:     ContentTypeResource,
 		Resource: resource,
+	}
+}
+
+// NewToolUseContent creates a new ToolUseContent with the given id, tool name, and input arguments.
+func NewToolUseContent(id, name string, input any) ToolUseContent {
+	return ToolUseContent{
+		Type:  ContentTypeToolUse,
+		ID:    id,
+		Name:  name,
+		Input: input,
+	}
+}
+
+// NewToolResultContent creates a new ToolResultContent with the given tool use ID, content, and error flag.
+func NewToolResultContent(toolUseID string, content []Content, isError bool) ToolResultContent {
+	return ToolResultContent{
+		Type:      ContentTypeToolResult,
+		ToolUseID: toolUseID,
+		Content:   content,
+		IsError:   isError,
 	}
 }
 
@@ -521,8 +546,7 @@ func NewInitializeResult(
 	}
 }
 
-// FormatNumberResult
-// Helper for formatting numbers in tool results
+// FormatNumberResult formats a number as a tool result.
 func FormatNumberResult(value float64) *CallToolResult {
 	return NewToolResultText(fmt.Sprintf("%.2f", value))
 }
@@ -636,7 +660,14 @@ func ParseContent(contentMap map[string]any) (Content, error) {
 			return nil, fmt.Errorf("resource_link uri or name is missing")
 		}
 		c := NewResourceLink(uri, name, description, mimeType)
+		c.Title = ExtractString(contentMap, "title")
+		if value, ok := contentMap["size"]; ok && value != nil {
+			if size, err := cast.ToInt64E(value); err == nil && size >= 0 {
+				c.Size = &size
+			}
+		}
 		c.Annotations = annotations
+		c.Meta = meta
 		return c, nil
 
 	case ContentTypeResource:
@@ -651,6 +682,46 @@ func ParseContent(contentMap map[string]any) (Content, error) {
 		}
 
 		c := NewEmbeddedResource(resourceContents)
+		c.Annotations = annotations
+		c.Meta = meta
+		return c, nil
+
+	case ContentTypeToolUse:
+		id := ExtractString(contentMap, "id")
+		if id == "" {
+			return nil, fmt.Errorf("tool_use id is missing")
+		}
+		name := ExtractString(contentMap, "name")
+		if name == "" {
+			return nil, fmt.Errorf("tool_use name is missing")
+		}
+		input := contentMap["input"]
+		c := NewToolUseContent(id, name, input)
+		c.Annotations = annotations
+		c.Meta = meta
+		return c, nil
+
+	case ContentTypeToolResult:
+		toolUseID := ExtractString(contentMap, "toolUseId")
+		if toolUseID == "" {
+			return nil, fmt.Errorf("tool_result toolUseId is missing")
+		}
+		isError, _ := contentMap["isError"].(bool)
+		var contentItems []Content
+		if rawContent, ok := contentMap["content"].([]any); ok {
+			for i, item := range rawContent {
+				itemMap, ok := item.(map[string]any)
+				if !ok {
+					return nil, fmt.Errorf("tool_result content[%d]: expected object, got %T", i, item)
+				}
+				parsed, err := ParseContent(itemMap)
+				if err != nil {
+					return nil, fmt.Errorf("parsing tool result content[%d]: %w", i, err)
+				}
+				contentItems = append(contentItems, parsed)
+			}
+		}
+		c := NewToolResultContent(toolUseID, contentItems, isError)
 		c.Annotations = annotations
 		c.Meta = meta
 		return c, nil
@@ -730,57 +801,19 @@ func ParseCallToolResult(rawMessage *json.RawMessage) (*CallToolResult, error) {
 		return nil, fmt.Errorf("response is nil")
 	}
 
-	var jsonContent map[string]any
-	if err := json.Unmarshal(*rawMessage, &jsonContent); err != nil {
+	var probe struct {
+		Content json.RawMessage `json:"content"`
+	}
+	if err := json.Unmarshal(*rawMessage, &probe); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
-
-	var result CallToolResult
-
-	meta, ok := jsonContent["_meta"]
-	if ok {
-		if metaMap, ok := meta.(map[string]any); ok {
-			result.Meta = NewMetaFromMap(metaMap)
-		}
-	}
-
-	isError, ok := jsonContent["isError"]
-	if ok {
-		if isErrorBool, ok := isError.(bool); ok {
-			result.IsError = isErrorBool
-		}
-	}
-
-	contents, ok := jsonContent["content"]
-	if !ok {
+	if probe.Content == nil {
 		return nil, fmt.Errorf("content is missing")
 	}
 
-	contentArr, ok := contents.([]any)
-	if !ok {
-		return nil, fmt.Errorf("content is not an array")
-	}
-
-	for _, content := range contentArr {
-		// Extract content
-		contentMap, ok := content.(map[string]any)
-		if !ok {
-			return nil, fmt.Errorf("content is not an object")
-		}
-
-		// Process content
-		content, err := ParseContent(contentMap)
-		if err != nil {
-			return nil, err
-		}
-
-		result.Content = append(result.Content, content)
-	}
-
-	// Handle structured content
-	structuredContent, ok := jsonContent["structuredContent"]
-	if ok {
-		result.StructuredContent = structuredContent
+	var result CallToolResult
+	if err := json.Unmarshal(*rawMessage, &result); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
 
 	return &result, nil
